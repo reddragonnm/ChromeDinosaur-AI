@@ -11,7 +11,7 @@ activation_mutate_rate  = 0.0
 activation_options      = sigmoid
 
 # network parameters
-num_hidden              = 3
+num_hidden              = 0
 num_inputs              = 5
 num_outputs             = 1
 
