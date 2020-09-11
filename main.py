@@ -2,7 +2,6 @@
 import pygame as pg
 import neat
 from random import randint, choice, random
-from collections import deque
 
 # initialising pygame
 pg.init()
