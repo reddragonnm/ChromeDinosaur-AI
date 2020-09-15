@@ -88,11 +88,11 @@ class Background:
 
 class Dino:
     def __init__(self, genome, config):
-        div_counter = 13  # just a counter to scale the images
+        self.div_counter = 13  # just a counter to scale the images
 
         self.images = [
-            pg.transform.scale(pg.image.load("images\\d1.png"), (screen_width // div_counter, screen_width // div_counter)),
-            pg.transform.scale(pg.image.load("images\\d2.png"), (screen_width // div_counter, screen_width // div_counter))
+            pg.transform.scale(pg.image.load("images\\dino1.png"), (screen_width // self.div_counter, screen_width // self.div_counter)),
+            pg.transform.scale(pg.image.load("images\\dino2.png"), (screen_width // self.div_counter, screen_width // self.div_counter))
         ]
 
         self.image = self.images[0]
@@ -106,8 +106,8 @@ class Dino:
         self.y = self.ground_level
 
         # motion variables
-        self.vel = 50
-        self.grav = 8
+        self.vel = 65
+        self.grav = 13
         self.jumping = False
 
         # neat-python variables
@@ -147,6 +147,7 @@ class Dino:
     # jumping functions
     def jump(self):
         self.jumping = True
+        self.image = pg.transform.scale(pg.image.load("images\\dinoj.png"), (screen_width // self.div_counter, screen_width // self.div_counter))
 
     def check_jump_dino(self):
         if self.jumping:
@@ -155,8 +156,8 @@ class Dino:
 
     def reset_movement(self):
         # reset the motion variables
-        self.vel = 50
-        self.grav = 8
+        self.vel = 65
+        self.grav = 13
         self.jumping = False
 
     def on_ground(self):
@@ -165,13 +166,13 @@ class Dino:
 
 class Cactus:
     def __init__(self, x=screen_width):
+        # generating random image for cactus
+        image_index = randint(1, 3) 
+        self.img = pg.image.load(f"images\\cactus{image_index}.png")
+
         # position variables
         self.x = x
-        self.y = screen_height - 130
-
-        # generating random image for cactus
-        image_index = randint(1, 5) 
-        self.img = pg.image.load(f"images\\c{image_index}.png")
+        self.y = screen_height - 80 - self.img.get_height()
 
         # rect variable for collision detection
         self.rect = None
