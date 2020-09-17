@@ -1,14 +1,15 @@
 # importing all modules
 import pygame as pg
 import neat
-from random import randint, choice, random
+from random import randint, choices
+import numpy as np
 
 # initialising pygame
 pg.init()
 pg.font.init()
 
 # some constants and the screen
-screen_width, screen_height = 1100, 400
+screen_width, screen_height = 1200, 500
 screen = pg.display.set_mode((screen_width, screen_height))
 
 # colors
@@ -25,6 +26,64 @@ fps_clock = pg.time.Clock()
 # current speed of the game and the maximum speed reached
 speed = 15
 high_speed = 0
+
+####################################################################################
+class Enemy:
+    def __init__(self, x,  y, rect):
+        self.x = x
+        self.y = y
+        self.rect = rect
+
+    def move(self):
+        self.x -= speed
+
+    def off_screen(self):
+        return self.x <= 0
+
+    def collide_dino(self, dino_rect):
+        return self.rect.colliderect(dino_rect)
+
+    def show(self):
+        self.rect = screen.blit(self.image, (self.x, self.y))
+
+class Bird(Enemy):
+    def __init__(self, x):
+        self.time_stamp = 0
+
+        self.images = [
+            pg.image.load("images\\bird.png"),
+            pg.image.load("images\\bird2.png")
+        ]
+
+        self.image = self.images[0]
+
+        y = screen_height - 80 - self.image.get_height()
+        super().__init__(x, y, None)
+
+    def manage_time_stamp(self):
+        self.time_stamp += 1
+
+        if self.time_stamp % 2 == 0:
+            self.image = self.images[1]
+        else:
+            self.image = self.images[0]
+
+    def display(self):
+        self.manage_time_stamp()
+        self.show()
+        
+
+class Cactus(Enemy):
+    def __init__(self, x):
+        self.image = pg.image.load(f"images\\cactus{randint(1, 3)}.png")
+        y = screen_height - 80 - self.image.get_height()
+
+        super().__init__(x, y, None)
+
+    def display(self):
+        self.show()
+
+##################################################################################
 
 class Background:
     # cloud class for the clouds (of course!)
@@ -88,11 +147,12 @@ class Background:
 
 class Dino:
     def __init__(self, genome, config):
-        self.div_counter = 13  # just a counter to scale the images
+        self.image_width = 75
+        self.image_height = 100
 
         self.images = [
-            pg.transform.scale(pg.image.load("images\\dino1.png"), (screen_width // self.div_counter, screen_width // self.div_counter)),
-            pg.transform.scale(pg.image.load("images\\dino2.png"), (screen_width // self.div_counter, screen_width // self.div_counter))
+            pg.transform.scale(pg.image.load("images\\dino1.png"), (self.image_width, self.image_height)),
+            pg.transform.scale(pg.image.load("images\\dino2.png"), (self.image_width, self.image_height))
         ]
 
         self.image = self.images[0]
@@ -106,8 +166,8 @@ class Dino:
         self.y = self.ground_level
 
         # motion variables
-        self.vel = 65
-        self.grav = 13
+        self.vel = 70
+        self.grav = 10
         self.jumping = False
 
         # neat-python variables
@@ -121,10 +181,17 @@ class Dino:
 
     def think(self, *args):
         # generating output for input
-        output = self.net.activate(*args)[0]
+        output = np.array(self.net.activate(*args))
 
-        if output > 0.5:
+        index = np.argmax(output)
+
+        if index == 0:
             self.jump()
+        elif index == 1:
+            self.duck()
+
+    def duck(self):
+        pass
 
     def iterate_image(self):
         # give the dino a running effect
@@ -147,7 +214,7 @@ class Dino:
     # jumping functions
     def jump(self):
         self.jumping = True
-        self.image = pg.transform.scale(pg.image.load("images\\dinoj.png"), (screen_width // self.div_counter, screen_width // self.div_counter))
+        self.image = pg.transform.scale(pg.image.load("images\\dinoj.png"), (self.image_width, self.image_height))
 
     def check_jump_dino(self):
         if self.jumping:
@@ -156,53 +223,29 @@ class Dino:
 
     def reset_movement(self):
         # reset the motion variables
-        self.vel = 65
-        self.grav = 13
+        self.vel = 70
+        self.grav = 10
         self.jumping = False
 
     def on_ground(self):
         # checking if the dinosaur is on ground
         return self.y >= self.ground_level
 
-class Cactus:
-    def __init__(self, x=screen_width):
-        # generating random image for cactus
-        image_index = randint(1, 3) 
-        self.img = pg.image.load(f"images\\cactus{image_index}.png")
-
-        # position variables
-        self.x = x
-        self.y = screen_height - 80 - self.img.get_height()
-
-        # rect variable for collision detection
-        self.rect = None
-
-    def move(self):
-        # moving the cactus
-        self.x -= speed
-
-    def display(self):
-        # displaying the cactus
-        self.rect = screen.blit(self.img, (self.x, self.y))
-
-    def off_screen(self):
-        # checking if the cactus has passes the screen
-        return self.x <= 0
-
-    def collide_dino(self, dino_rect):
-        # checking if dino collides with cactus
-        return self.rect.colliderect(dino_rect)
+##################################################################################
 
 class GameEnv:
     def __init__(self):
         # setting the background and dinos
         self.bg = Background()
-        self.cacti = [Cactus(), Cactus(screen_width * 1.5)]
+        self.obstacles = [self.get_obstacle(), self.get_obstacle(screen_width * 1.5)]
         self.dinos = []
 
         # the stats
         self.score = 0
         self.generation = 0
+
+    def get_obstacle(self, x=screen_width):
+        return choices([Cactus(x), Bird(x)], weights=[3, 1])[0]
 
     def add_dino(self, genome, config):
         # add a dino according to genome and config
@@ -218,36 +261,31 @@ class GameEnv:
     def manage_cactus(self):
         to_remove = []
 
-        for cactus in self.cacti:
+        for obs in self.obstacles:
             # moving and displaying the cactus
-            cactus.move()
-            cactus.display()
+            obs.move()
+            obs.display()
 
             # if a cactus exits the screen, increase the score, add a cactus and remove the exited cactus
-            if cactus.off_screen():
+            if obs.off_screen():
                 self.score += 1
-                self.cacti.append(Cactus())
-                to_remove.append(cactus)
+                self.obstacles.append(self.get_obstacle())
+                to_remove.append(obs)
 
         for remove in to_remove:
-            self.cacti.remove(remove)
+            self.obstacles.remove(remove)
 
     def check_removal(self):
         to_remove = []
 
-        for cactus in self.cacti:
-
-            cactus.display()
+        for obs in self.obstacles:
+            obs.display()
 
             for dino in self.dinos:
-
-                if cactus.collide_dino(dino.rect):
+                dino.increase_fitness_by(1 / len(self.obstacles))
+                if obs.collide_dino(dino.rect):
                     # dino collides with cactus remove it
                     to_remove.append(dino)
-                else:
-                    # increase dino fitness by one
-                    dino.increase_fitness_by(1 / len(self.cacti))
-
 
         for remove in to_remove:
             try:
@@ -256,21 +294,21 @@ class GameEnv:
             except:
                 pass
 
-    def get_active_cactus(self):
+    def get_active_obs(self):
         # give the cactus infront of the dino
-        for cactus in self.cacti:
-            if cactus.x > 150:
-                return cactus
-        return Cactus()
+        for obs in self.obstacles:
+            if obs.x > 150:
+                return obs
+        return self.get_obstacle()
 
     def get_info(self, dino):
-        active_cactus = self.get_active_cactus()
+        obs = self.get_active_obs()
 
         return (
             dino.x,
             dino.y,
-            active_cactus.x,
-            active_cactus.y,
+            obs.x,
+            obs.y,
             speed
         )
 
@@ -285,7 +323,7 @@ class GameEnv:
 
     def reset(self):
         # reset the environment
-        self.cacti = [Cactus(), Cactus(screen_width * 1.5)]
+        self.obstacles = [self.get_obstacle(), self.get_obstacle(screen_width * 1.5)]
         self.dinos = []
 
         self.score = 0
@@ -294,7 +332,9 @@ class GameEnv:
         global speed
         speed = 15
 
+##################################################################################
 env = GameEnv()
+###################################################################################
 
 def eval_genomes(genomes, config):
     global speed
